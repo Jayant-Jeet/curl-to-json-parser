@@ -315,6 +315,57 @@ test('does not parse non-JSON as JSON', () => {
   assert.equal(out.body, 'plain text');
 });
 
+// Tests for auto-detecting form data without Content-Type header
+test('auto-detects form data without Content-Type header', () => {
+  const curl = 'curl -X POST https://api.example.com/login -d "username=john&password=secret"';
+  const out = parseCurlToJson(curl);
+  assert.deepEqual(out.form, {
+    username: 'john',
+    password: 'secret'
+  });
+  assert.equal(out.json, undefined);
+});
+
+test('auto-detects simple key=value without Content-Type', () => {
+  const curl = 'curl -X POST https://api.example.com/api -d "token=abc123"';
+  const out = parseCurlToJson(curl);
+  assert.deepEqual(out.form, { token: 'abc123' });
+});
+
+test('auto-detects form with multiple -d flags without Content-Type', () => {
+  const curl = 'curl -X POST https://api.example.com/api -d "name=Alice" -d "age=25"';
+  const out = parseCurlToJson(curl);
+  assert.equal(out.body, 'name=Alice&age=25');
+  assert.deepEqual(out.form, {
+    name: 'Alice',
+    age: '25'
+  });
+});
+
+test('auto-detects URL-encoded form data without Content-Type', () => {
+  const curl = 'curl -X POST https://api.example.com/api -d "email=user%40example.com&name=John+Doe"';
+  const out = parseCurlToJson(curl);
+  assert.deepEqual(out.form, {
+    email: 'user@example.com',
+    name: 'John Doe'
+  });
+});
+
+test('does not parse JSON as form even without Content-Type', () => {
+  const curl = 'curl -X POST https://api.example.com/api -d \'{"name":"John"}\'';
+  const out = parseCurlToJson(curl);
+  assert.deepEqual(out.json, { name: 'John' });
+  assert.equal(out.form, undefined);
+});
+
+test('does not parse plain text as form without equals sign', () => {
+  const curl = 'curl -X POST https://api.example.com/api -d "just plain text"';
+  const out = parseCurlToJson(curl);
+  assert.equal(out.body, 'just plain text');
+  assert.equal(out.form, undefined);
+  assert.equal(out.json, undefined);
+});
+
 console.log(`\n${passCount}/${testCount} tests passed`);
 if (passCount !== testCount) {
   process.exit(1);
