@@ -1,38 +1,98 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
+about: Report a problem with curl-to-json-parser (API or CLI)
+title: "bug: <short summary>"
+labels: bug
 assignees: ''
-
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Summary
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- A clear and concise description of the bug. What went wrong? What did you expect instead? -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Affected Area
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+- [ ] API (imported function: `parseCurlToJson`)
+- [ ] CLI (`npx curl-to-json-parser`)
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## Environment
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+- Package version: `0.x.x`
+- Node.js version: `node -v`
+- OS: Windows/macOS/Linux (include version)
 
-**Additional context**
-Add any other context about the problem here.
+## Reproduction
+
+Provide a minimal, complete example that reproduces the issue.
+
+### 1) Curl input
+
+```bash
+# paste the exact curl you ran (multiline supported)
+curl https://api.example.com/users -H "Accept: application/json" -G -d "page=2"
+```
+
+### 2) How you invoked the parser
+
+One of the following:
+
+- CLI (Windows cmd.exe)
+
+```cmd
+npx curl-to-json-parser "<your curl here>"
+```
+
+- API
+
+```ts
+import { parseCurlToJson } from 'curl-to-json-parser';
+
+const input = `curl https://api.example.com/users -H "Accept: application/json" -G -d "page=2"`;
+const result = parseCurlToJson(input);
+console.log(result);
+```
+
+### 3) Expected output
+
+```json
+{
+  "method": "GET",
+  "url": "https://api.example.com/users?page=2",
+  "headers": { "Accept": "application/json" }
+}
+```
+
+### 4) Actual result
+
+<!-- Paste the actual JSON output or error/stack trace -->
+
+```json
+{}
+```
+
+## Flags involved (check all that apply)
+
+- [ ] `-X/--request`
+- [ ] `-H/--header`
+- [ ] `-d/--data*`
+- [ ] `-G/--get`
+- [ ] `-F/--form`
+- [ ] `-u/--user`
+- [ ] `--url`
+- [ ] `-A/--user-agent`
+- [ ] `--referer`
+- [ ] `--compressed`
+- [ ] `-k/--insecure`
+- [ ] `-L/--location`
+- [ ] `-I/--head`
+- [ ] `-b/--cookie`
+
+## Additional details
+
+- Is this a regression (worked in a previous version)? If yes, which version?
+- Any special characters, quoting, or multi-line edge cases in the curl string?
+- If multipart/form-data, list parts and filenames if possible (redact sensitive info).
+
+## Notes
+
+This library only parses curl strings (no network calls). See README for supported flags and output shape.
