@@ -333,7 +333,10 @@ function processBody(state: ParseState, query: Record<string, string | string[]>
     }
   }
 
-  if (ct?.toLowerCase().includes('application/x-www-form-urlencoded')) {
+  if (
+    ct?.toLowerCase().includes("application/x-www-form-urlencoded") ||
+    (!ct && /^[^=]+=./.test(body))
+  ) {
     return { body, form: parseFormUrlEncoded(body) };
   }
 
