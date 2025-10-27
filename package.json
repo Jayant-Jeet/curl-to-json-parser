@@ -1,6 +1,6 @@
 {
   "name": "@brainstrom286/curl-to-json-parser",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Convert a multiline curl command string into a structured, parsable JSON object.",
   "keywords": [
     "curl",
