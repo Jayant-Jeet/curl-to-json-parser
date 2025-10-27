@@ -366,6 +366,75 @@ test('does not parse plain text as form without equals sign', () => {
   assert.equal(out.json, undefined);
 });
 
+test('repeated and complex headers with file/form upload', () => {
+  const curl = `curl -X POST https://api.example.com/upload \
+  -H "Accept: application/json" \
+  -H "X-Custom: value; param=1" \
+  -H "X-Custom: another" \
+  -F "file=@/path/to/file.txt" \
+  -F "meta={\\"author\\":\\"jay\\"}"`;
+
+  const out = parseCurlToJson(curl);
+  assert.equal(out.method, 'POST');
+  assert.equal(out.url, 'https://api.example.com/upload');
+  assert.equal(out.headers['Accept'], 'application/json');
+  // ✅ Correct merging behavior for repeated headers — semicolon-separated is invalid, keep joined values
+  assert.equal(out.headers['X-Custom'], 'value; param=1; another');
+  assert.deepEqual(out.form, {
+    file: '@/path/to/file.txt',
+    meta: '{"author":"jay"}'
+  });
+});
+
+test('--get flag merges multiple -d flags into URL query', () => {
+  const curl = `curl "https://api.example.com/search?q=initial" -G -d "q=hello world" -d "page=2"`;
+  const out = parseCurlToJson(curl);
+
+  assert.equal(out.method, 'GET');
+  assert.ok(out.url.includes('q=initial'));
+  assert.ok(out.url.includes('q=hello%20world') || out.url.includes('q=hello+world'));
+  assert.ok(out.url.includes('page=2'));
+
+
+  assert.deepEqual(out.query, { q: ['initial', 'hello world'], page: '2' });
+});
+
+test('quoting and escaping edge cases inside JSON', () => {
+  const curl = `curl -X PUT 'https://api.example.com/notes' \
+  -H "Content-Type: application/json" \
+  -d '{"text":"line1\nline2", "quote":"He said \\"hi\\""}'`;
+
+  const out = parseCurlToJson(curl);
+
+  assert.equal(out.method, 'PUT');
+  assert.equal(out.headers['Content-Type'], 'application/json');
+
+  assert.ok(
+    out.body.includes('line1\\nline2') || out.body.includes('line1\nline2'),
+    'Expected newline escape preserved or interpreted'
+  );
+  assert.ok(
+    out.body.includes('He said \\"hi\\"') || out.body.includes('He said "hi"'),
+    'Expected escaped quotes preserved or interpreted'
+  );
+});
+
+test('cookie + auth combo with compression', () => {
+  const curl = `curl --user "user:pass" \
+  --cookie "session=abc123; theme=dark" \
+  --compressed https://api.example.com/protected`;
+
+  const out = parseCurlToJson(curl);
+
+  assert.equal(out.method, 'GET');
+  assert.equal(out.url, 'https://api.example.com/protected');
+
+  assert.deepEqual(out.auth, { user: 'user', password: 'pass' });
+
+  assert.deepEqual(out.cookies, { session: 'abc123', theme: 'dark' });
+  assert.equal(out.compressed, true);
+});
+
 console.log(`\n${passCount}/${testCount} tests passed`);
 if (passCount !== testCount) {
   process.exit(1);
