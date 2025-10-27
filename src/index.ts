@@ -45,8 +45,6 @@ interface ParseState {
   referer?: string;
   userAgent?: string;
   auth?: { user: string; password?: string };
-  // optional form container on state for -F simple key=val capture
-  form?: Record<string, string>;
 }
 
 /**
@@ -75,24 +73,6 @@ export function parseCurlToJson(input: string): CurlJson {
   return buildResult(state);
 }
 
-/**
- * Add a simple key=value form field to a form map.
- * Keeps file-style value verbatim (starts with '@').
- */
-function addFormField(form: Record<string, string>, raw?: string) {
-  if (!raw) return;
-  const idx = raw.indexOf('=');
-  if (idx === -1) return;
-  const key = raw.slice(0, idx).trim();
-  let value = raw.slice(idx + 1).trim();
-
-  // strip surrounding quotes if present (but keep content)
-  if (!value.startsWith('@')) {
-    value = value.replace(/^['"]|['"]$/g, '');
-  }
-  form[key] = value;
-}
-
 function parseTokens(tokens: string[], state: ParseState): void {
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -103,7 +83,6 @@ function parseTokens(tokens: string[], state: ParseState): void {
     } else if (t.startsWith('-') && t !== '-') {
       i = processShortFlags(tokens, i, state);
     } else if (state.url) {
-      // tokens after url are treated as dataParts (positional)
       state.dataParts.push(t);
     } else {
       state.url = t;
@@ -238,15 +217,7 @@ function processDataFlag(tokens: string[], i: number, state: ParseState): number
 
 function processFormFlag(tokens: string[], i: number, state: ParseState): number {
   const gathered = collectUntilNextFlag(tokens, i + 1, state);
-  const val = gathered.value || '';
-
-  // populate multipart (existing behavior)
-  parseFormPart(val, state.multipart);
-
-  // also populate a simple form map for -F name=value or file=@file
-  if (!state.form) state.form = {};
-  addFormField(state.form, val);
-
+  parseFormPart(gathered.value || '', state.multipart);
   return gathered.nextIndex;
 }
 
@@ -292,9 +263,6 @@ function buildResult(state: ParseState): CurlJson {
   const { body, json, form } = processBody(state, query);
   const method = determineMethod(state, body);
 
-  // prefer the form returned from processBody (it handles urlencoded forms)
-  const resultForm = form ?? state.form;
-
   return {
     method,
     url: rebuildUrl(baseUrl, query),
@@ -303,7 +271,7 @@ function buildResult(state: ParseState): CurlJson {
     cookies: state.cookies,
     body,
     json,
-    form: resultForm && Object.keys(resultForm).length ? resultForm : undefined,
+    form,
     multipart: state.multipart.length ? state.multipart : undefined,
     auth: state.auth,
     compressed: state.compressed,
@@ -344,40 +312,16 @@ function processUrl(state: ParseState): { baseUrl: string; query: Record<string,
 }
 
 function processBody(state: ParseState, query: Record<string, string | string[]>): { body?: string; json?: any; form?: Record<string, string> } {
-  // Handle -G / --get: treat dataParts as query params and merge them
   if (state.getMode && state.dataParts.length) {
-    for (const data of state.dataParts) {
-      const sp = new URLSearchParams(data);
-      for (const [k, v] of sp.entries()) addQuery(query, k, v);
-    }
-
-    // rebuild state.url with encoded query values to reflect -G behavior
-    try {
-      const base = state.url ? state.url.split('?')[0] : '';
-      const params = new URLSearchParams();
-      for (const [k, v] of Object.entries(query)) {
-        if (Array.isArray(v)) v.forEach(val => params.append(k, val));
-        else params.append(k, v);
-      }
-      state.url = params.toString() ? `${base}?${params.toString()}` : base;
-    } catch {
-      // ignore URL rebuild errors; leave state.url as-is
-    }
-
+    const asQuery = state.dataParts.join('&');
+    const sp = new URLSearchParams(asQuery);
+    for (const [k, v] of sp.entries()) addQuery(query, k, v);
     return {};
   }
 
   if (!state.dataParts.length) return {};
 
-  // preserve common escape sequences in the raw data string
-  const body = state.dataParts
-    .join('&')
-    // If the input contained double-escaped sequences like "\\n" (string literal from shell),
-    // convert double-escaped to single-escaped representation
-    .replace(/\\\\n/g, '\\n')
-    .replace(/\\n/g, '\\n')
-    .replace(/\\"/g, '\\"');
-
+  const body = state.dataParts.join('&');
   const ct = getHeader(state.headers, 'Content-Type');
   const looksJson = ct?.toLowerCase().includes('application/json') || /^[[{]/.test(body.trim());
 
@@ -510,12 +454,7 @@ function addHeader(headers: Record<string, string>, raw?: string) {
   if (idx === -1) return;
   const name = raw.slice(0, idx).trim();
   const value = raw.slice(idx + 1).trim();
-
-  if (headers[name]) {
-    headers[name] = `${headers[name]}; ${value}`;
-  } else {
-    headers[name] = value;
-  }
+  headers[name] = value;
 }
 
 function getHeader(headers: Record<string, string>, name: string): string | undefined {
@@ -649,5 +588,5 @@ function collectUntilNextFlag(tokens: string[], startIndex: number, state: Parse
 function looksLikeUrl(token: string): boolean {
   // Check if token looks like a URL (starts with protocol or domain-like pattern)
   return /^https?:\/\//.test(token) ||
-    /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+/.test(token);
+         /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+/.test(token);
 }
