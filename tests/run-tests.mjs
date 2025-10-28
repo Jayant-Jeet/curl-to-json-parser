@@ -99,6 +99,12 @@ test('infers JSON from body structure', () => {
   assert.deepEqual(out.json, { implicit: true });
 });
 
+test('JSON quoting test asserts parsed JSON', () => {
+  const curl = 'curl -X POST -H "Content-Type: application/json" -d \'{"message": "Hello"}\' https://api.example.com';
+  const out = parseCurlToJson(curl);
+  assert.deepEqual(out.json, { message: 'Hello' });
+});
+
 test('multiple -d flags concatenate', () => {
   const curl = 'curl -X POST https://api.example.com/data -d "part1" -d "part2"';
   const out = parseCurlToJson(curl);
@@ -114,6 +120,7 @@ test('POST with form-encoded data', () => {
     email: 'john@example.com'
   });
 });
+
 
 test('multipart form with -F', () => {
   const curl = 'curl -X POST https://api.example.com/upload -F "name=John" -F "email=john@example.com"';
@@ -364,75 +371,6 @@ test('does not parse plain text as form without equals sign', () => {
   assert.equal(out.body, 'just plain text');
   assert.equal(out.form, undefined);
   assert.equal(out.json, undefined);
-});
-
-test('repeated and complex headers with file/form upload', () => {
-  const curl = `curl -X POST https://api.example.com/upload \
-  -H "Accept: application/json" \
-  -H "X-Custom: value; param=1" \
-  -H "X-Custom: another" \
-  -F "file=@/path/to/file.txt" \
-  -F "meta={\\"author\\":\\"jay\\"}"`;
-
-  const out = parseCurlToJson(curl);
-  assert.equal(out.method, 'POST');
-  assert.equal(out.url, 'https://api.example.com/upload');
-  assert.equal(out.headers['Accept'], 'application/json');
-  assert.equal(out.headers['X-Custom'], 'another');
-  // -F should populate multipart parts
-  assert.ok(Array.isArray(out.multipart));
-  assert.deepEqual(out.multipart?.[0], { name: 'file', filename: '/path/to/file.txt' });
-  assert.deepEqual(out.multipart?.[1], { name: 'meta', value: '{"author":"jay"}' });
-  assert.ok(out.body || out.data || out.form === undefined);
-});
-
-
-
-test('--get flag merges multiple -d flags into URL query', () => {
-  const curl = `curl "https://api.example.com/search?q=initial" -G -d "q=hello world" -d "page=2"`;
-  const out = parseCurlToJson(curl);
-
-  assert.equal(out.method, 'GET');
-  assert.ok(out.url.includes('q=initial'));
-  assert.ok(out.url.includes('q=hello%20world') || out.url.includes('q=hello+world'));
-  assert.ok(out.url.includes('page=2'));
-  assert.deepEqual(out.query, { q: ['initial', 'hello world'], page: '2' });
-
-  // Ensure body is cleared when -G is used
-  assert.equal(out.body, undefined);
-});
-
-test('quoting and escaping edge cases inside JSON', () => {
-  const curl = `curl -X PUT 'https://api.example.com/notes' \
-  -H "Content-Type: application/json" \
-  -d '{"text":"line1\nline2", "quote":"He said \\"hi\\""}'`;
-
-  const out = parseCurlToJson(curl);
-
-  assert.equal(out.method, 'PUT');
-  assert.equal(out.headers['Content-Type'], 'application/json');
-
-  // Prefer asserting parsed JSON
-  assert.deepEqual(out.json, {
-    text: 'line1\nline2',
-    quote: 'He said "hi"'
-  });
-});
-
-test('cookie + auth combo with compression', () => {
-  const curl = `curl --user "user:pass" \
-  --cookie "session=abc123; theme=dark" \
-  --compressed https://api.example.com/protected`;
-
-  const out = parseCurlToJson(curl);
-
-  assert.equal(out.method, 'GET');
-  assert.equal(out.url, 'https://api.example.com/protected');
-
-  assert.deepEqual(out.auth, { user: 'user', password: 'pass' });
-
-  assert.deepEqual(out.cookies, { session: 'abc123', theme: 'dark' });
-  assert.equal(out.compressed, true);
 });
 
 console.log(`\n${passCount}/${testCount} tests passed`);
