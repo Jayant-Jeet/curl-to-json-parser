@@ -375,11 +375,14 @@ test('repeated and complex headers with file/form upload', () => {
   -F "meta={\\"author\\":\\"jay\\"}"`;
 
   const out = parseCurlToJson(curl);
-
   assert.equal(out.method, 'POST');
   assert.equal(out.url, 'https://api.example.com/upload');
   assert.equal(out.headers['Accept'], 'application/json');
   assert.equal(out.headers['X-Custom'], 'another');
+  // -F should populate multipart parts
+  assert.ok(Array.isArray(out.multipart));
+  assert.deepEqual(out.multipart?.[0], { name: 'file', filename: '/path/to/file.txt' });
+  assert.deepEqual(out.multipart?.[1], { name: 'meta', value: '{"author":"jay"}' });
   assert.ok(out.body || out.data || out.form === undefined);
 });
 
@@ -393,9 +396,10 @@ test('--get flag merges multiple -d flags into URL query', () => {
   assert.ok(out.url.includes('q=initial'));
   assert.ok(out.url.includes('q=hello%20world') || out.url.includes('q=hello+world'));
   assert.ok(out.url.includes('page=2'));
-
-
   assert.deepEqual(out.query, { q: ['initial', 'hello world'], page: '2' });
+
+  // Ensure body is cleared when -G is used
+  assert.equal(out.body, undefined);
 });
 
 test('quoting and escaping edge cases inside JSON', () => {
@@ -408,14 +412,11 @@ test('quoting and escaping edge cases inside JSON', () => {
   assert.equal(out.method, 'PUT');
   assert.equal(out.headers['Content-Type'], 'application/json');
 
-  assert.ok(
-    out.body.includes('line1\\nline2') || out.body.includes('line1\nline2'),
-    'Expected newline escape preserved or interpreted'
-  );
-  assert.ok(
-    out.body.includes('He said \\"hi\\"') || out.body.includes('He said "hi"'),
-    'Expected escaped quotes preserved or interpreted'
-  );
+  // Prefer asserting parsed JSON
+  assert.deepEqual(out.json, {
+    text: 'line1\nline2',
+    quote: 'He said "hi"'
+  });
 });
 
 test('cookie + auth combo with compression', () => {
