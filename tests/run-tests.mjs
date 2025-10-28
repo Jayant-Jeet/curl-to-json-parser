@@ -99,6 +99,12 @@ test('infers JSON from body structure', () => {
   assert.deepEqual(out.json, { implicit: true });
 });
 
+test('JSON quoting test asserts parsed JSON', () => {
+  const curl = 'curl -X POST -H "Content-Type: application/json" -d \'{"message": "Hello"}\' https://api.example.com';
+  const out = parseCurlToJson(curl);
+  assert.deepEqual(out.json, { message: 'Hello' });
+});
+
 test('multiple -d flags concatenate', () => {
   const curl = 'curl -X POST https://api.example.com/data -d "part1" -d "part2"';
   const out = parseCurlToJson(curl);
@@ -114,6 +120,7 @@ test('POST with form-encoded data', () => {
     email: 'john@example.com'
   });
 });
+
 
 test('multipart form with -F', () => {
   const curl = 'curl -X POST https://api.example.com/upload -F "name=John" -F "email=john@example.com"';
